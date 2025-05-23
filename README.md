@@ -25,6 +25,6 @@ Puster es una herramienta de monitoreo para sistemas Linux desarrollada en C que
 ## 🧪 Compilación
 
 ```bash
-gcc -o monitor puster.c
+gcc puster.c -o puster
 ```
 
