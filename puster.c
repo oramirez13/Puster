@@ -3,7 +3,7 @@
 #include <string.h>   // Para manipulación de cadenas de texto
 #include <unistd.h>   // Para funciones de API de Linux (como sleep o acceso a archivos)
 
-// Definición de Colores ANSI para una interfaz visual en la terminal de Arch Linux
+// Definición de Colores ANSI
 #define RED     "\033[1;31m"
 #define GREEN   "\033[1;32m"
 #define YELLOW  "\033[1;33m"
@@ -12,7 +12,7 @@
 #define CYAN    "\033[1;36m"
 #define RESET   "\033[0m"
 
-// Función para mostrar el banner artístico del proyecto
+// Función para mostrar el banner del proyecto
 void mostrar_banner() {
     printf("%s\n", CYAN);
     printf(" ____  _   _ ____ _____ _____ ____  \n");
@@ -32,7 +32,7 @@ void pausar() {
 
 // Función para registrar eventos en un archivo de texto externo
 void registrar_log(const char *mensaje) {
-    // Abrimos en modo "a" (append) para añadir al final sin borrar lo anterior
+    // Se abre en modo "a" (append) para añadir al final sin borrar lo anterior
     FILE *log = fopen("monitor_log.txt", "a");
     if (log == NULL) {
         perror("Error al abrir el archivo de log"); // Muestra el error del sistema
@@ -61,7 +61,7 @@ void mostrar_disco() {
 void detectar_remoto() {
     printf("%s--- Detección de conexiones externas (ss) --- %s\n", YELLOW, RESET);
     
-    // Usamos 'ss' en lugar de 'netstat' por ser el estándar moderno en Linux
+    // Se usa 'ss' en lugar de 'netstat' por ser el estándar moderno en Linux
     // popen abre un proceso y nos permite leer su salida como un archivo
     FILE *fp = popen("ss -tunp | grep -v '127.0.0.1' | grep -v '::1'", "r");
     if (fp == NULL) {
@@ -71,7 +71,7 @@ void detectar_remoto() {
 
     char buffer[1024];
     int alerta = 0;
-    // Leemos la salida del comando línea por línea
+    // Se lee la salida del comando línea por línea
     while (fgets(buffer, sizeof(buffer), fp) != NULL) {
         alerta = 1;
         printf("%s[ALERTA] Conexión detectada:%s %s", RED, RESET, buffer);
@@ -83,13 +83,13 @@ void detectar_remoto() {
         printf("%sNo hay conexiones externas sospechosas.%s\n", GREEN, RESET);
         registrar_log("[INFO] Escaneo de red limpio.");
     }
-    pclose(fp); // Cerramos el proceso abierto por popen
+    pclose(fp); // Se cierra el proceso abierto por popen
 }
 
 // Función para visualizar el historial de eventos guardados
 void ver_log() {
     printf("%s--- Historial del Sistema (monitor_log.txt) --- %s\n", BLUE, RESET);
-    // Verificamos si el archivo existe antes de intentar leerlo
+    // Se verifica si el archivo existe antes de intentar leerlo
     if (access("monitor_log.txt", F_OK) != -1) {
         system("tail -n 20 monitor_log.txt"); // Muestra solo las últimas 20 líneas
     } else {
