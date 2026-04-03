@@ -112,7 +112,7 @@ int main() {
         printf("5. Salir\n");
         printf("Seleccione una opción: ");
 
-        // Forma más segura de leer entrada para evitar cuelgues por caracteres no numéricos
+        // Forma más segura de leer entrada para evitar crashes por caracteres no numéricos
         if (fgets(entrada, sizeof(entrada), stdin)) {
             opcion = atoi(entrada); // Convierte la cadena a entero
         }
