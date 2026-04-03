@@ -45,7 +45,8 @@ void registrar_log(const char *mensaje) {
 // Ejecuta el comando 'ps' para listar procesos, limitado a los 10 principales
 void mostrar_procesos() {
     printf("%s--- Procesos activos (Top 10) ---%s\n", GREEN, RESET);
-    system("ps aux --sort=-%cpu | head -n 11"); // Ordenado por uso de CPU
+    // Ordenado por uso de CPU, limitando cada línea a 100 caracteres
+    system("ps aux --sort=-%cpu | head -n 11 | cut -c 1-100");  
     registrar_log("[INFO] Consulta de procesos realizada.");
 }
 
