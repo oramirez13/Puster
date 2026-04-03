@@ -21,7 +21,7 @@ void mostrar_banner() {
     printf("|  __/| |_| |___) || | | |___|  _ < \n");
     printf("|_|    \\___/|____/ |_| |_____|_| \\_\\\n");
     printf("       %sLinux Monitoring Tool%s\n", MAGENTA, RESET);
-    printf("        %sOrami Cybersec 2026%s\n\n", YELLOW, RESET);
+    printf("        %sOrami InfoSec 2026%s\n\n", YELLOW, RESET);
 }
 
 // Función para pausar la ejecución y permitir que el usuario lea la salida
