@@ -1,9 +1,23 @@
-#include <stdio.h>    // Librería estándar de entrada y salida
-#include <stdlib.h>   // Para funciones de sistema y gestión de memoria
-#include <string.h>   // Para manipulación de cadenas de texto
-#include <unistd.h>   // Para funciones de API de Linux (como sleep o acceso a archivos)
+/*
+ * Puster - Linux System Monitoring Tool
+ *
+ * A console-based monitoring tool for Linux that displays active processes,
+ * disk usage, and remote network connections with logging support.
+ *
+ * Author: Orami
+ * Version: 3.0
+ */
 
-// Definición de Colores ANSI
+#define _POSIX_C_SOURCE 200809L
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <time.h>
+#include <getopt.h>
+
+/* ANSI color codes for terminal output */
 #define RED     "\033[1;31m"
 #define GREEN   "\033[1;32m"
 #define YELLOW  "\033[1;33m"
@@ -12,128 +26,349 @@
 #define CYAN    "\033[1;36m"
 #define RESET   "\033[0m"
 
-// Función para mostrar el banner del proyecto
-void mostrar_banner() {
+/* Log file path */
+#define LOG_FILE "monitor_log.txt"
+#define JSON_FILE "monitor_data.json"
+
+/*
+ * Get current timestamp in "YYYY-MM-DD HH:MM:SS" format.
+ * Uses localtime_r() for thread safety.
+ */
+void get_timestamp(char *buffer, size_t size)
+{
+    time_t now = time(NULL);
+    struct tm tm_buf;
+    localtime_r(&now, &tm_buf);
+    strftime(buffer, size, "%Y-%m-%d %H:%M:%S", &tm_buf);
+}
+
+/*
+ * Append a message to the log file with timestamp.
+ */
+void log_message(const char *message)
+{
+    FILE *log = fopen(LOG_FILE, "a");
+    if (log == NULL)
+        return;
+
+    char timestamp[64];
+    get_timestamp(timestamp, sizeof(timestamp));
+    fprintf(log, "[%s] %s\n", timestamp, message);
+    fclose(log);
+}
+
+/*
+ * Print a command output using popen() and log each line.
+ * Returns 0 on success, -1 on failure.
+ */
+int run_command(const char *cmd, const char *header, const char *log_prefix)
+{
+    printf("%s--- %s ---%s\n", GREEN, header, RESET);
+
+    FILE *fp = popen(cmd, "r");
+    if (fp == NULL) {
+        printf("%sError executing command.%s\n", RED, RESET);
+        log_message("[ERROR] Failed to execute command");
+        return -1;
+    }
+
+    char *line = NULL;
+    size_t len = 0;
+    int count = 0;
+
+    while (getline(&line, &len, fp) != -1) {
+        printf("%s", line);
+        count++;
+    }
+
+    free(line);
+    pclose(fp);
+
+    char log_msg[256];
+    snprintf(log_msg, sizeof(log_msg), "[INFO] %s shown (%d lines)", log_prefix, count);
+    log_message(log_msg);
+
+    return 0;
+}
+
+/*
+ * Display the application banner.
+ */
+void print_banner(void)
+{
     printf("%s\n", CYAN);
     printf(" ____  _   _ ____ _____ _____ ____  \n");
     printf("|  _ \\| | | / ___|_   _| ____|  _ \\ \n");
     printf("| |_) | | | \\___ \\ | | |  _| | |_) |\n");
     printf("|  __/| |_| |___) || | | |___|  _ < \n");
     printf("|_|    \\___/|____/ |_| |_____|_| \\_\\\n");
-    printf("       %sLinux Monitoring Tool%s\n", MAGENTA, RESET);
-    printf("        %sOrami InfoSec 2026%s\n\n", YELLOW, RESET);
+    printf("       %sLinux Monitoring Tool 3.0%s\n", MAGENTA, RESET);
+    printf("        %sOrami Infosec 2025%s\n\n", YELLOW, RESET);
 }
 
-// Función para pausar la ejecución y permitir que el usuario lea la salida
-void pausar() {
-    printf("\n%sPresiona Enter para continuar...%s", YELLOW, RESET);
-    getchar(); // Captura el carácter sobrante del buffer
+/*
+ * Wait for user to press Enter.
+ */
+void pause_screen(void)
+{
+    printf("\nPress Enter to continue...");
+    getchar();
 }
 
-// Función para registrar eventos en un archivo de texto externo
-void registrar_log(const char *mensaje) {
-    // Se abre en modo "a" (append) para añadir al final sin borrar lo anterior
-    FILE *log = fopen("monitor_log.txt", "a");
-    if (log == NULL) {
-        perror("Error al abrir el archivo de log"); // Muestra el error del sistema
-        return;
-    }
-    fprintf(log, "%s\n", mensaje); // Escribe el mensaje en el archivo
-    fclose(log); // Siempre cerrar el flujo para evitar fugas de memoria
+/*
+ * Display active processes sorted by CPU usage.
+ * Optional filter: if filter is not NULL, only show lines containing it.
+ */
+void show_processes(const char *filter)
+{
+    char cmd[256];
+    if (filter && filter[0] != '\0')
+        snprintf(cmd, sizeof(cmd), "ps aux --sort=-%%cpu | head -n 15 | grep -i '%s'", filter);
+    else
+        snprintf(cmd, sizeof(cmd), "ps aux --sort=-%%cpu | head -n 15");
+
+    run_command(cmd, "Active Processes", "Active processes shown");
 }
 
-// Ejecuta el comando 'ps' para listar procesos, limitado a los 10 principales
-void mostrar_procesos() {
-    printf("%s--- Procesos activos (Top 10) ---%s\n", GREEN, RESET);
-    // Ordenado por uso de CPU, limitando cada línea a 100 caracteres
-    system("ps aux --sort=-%cpu | head -n 11 | cut -c 1-100");  
-    registrar_log("[INFO] Consulta de procesos realizada.");
+/*
+ * Display disk usage for mounted partitions.
+ */
+void show_disk(void)
+{
+    run_command("df -h | grep '^/dev'", "Disk Usage", "Disk usage shown");
 }
 
-// Muestra el espacio disponible en las particiones de disco físicas
-void mostrar_disco() {
-    printf("%s--- Uso de disco ---%s\n", GREEN, RESET);
-    system("df -h -x tmpfs -x devtmpfs"); // Filtra sistemas de archivos virtuales
-    registrar_log("[INFO] Consulta de disco realizada.");
-}
+/*
+ * Detect and display active remote network connections.
+ * Excludes localhost (127.0.0.1 and ::1).
+ */
+void detect_remote_connections(void)
+{
+    printf("%s--- Remote Connection Detection ---%s\n", YELLOW, RESET);
 
-// Función crítica de seguridad: detecta conexiones de red activas
-void detectar_remoto() {
-    printf("%s--- Detección de conexiones externas (ss) --- %s\n", YELLOW, RESET);
-    
-    // Se usa 'ss' en lugar de 'netstat' por ser el estándar moderno en Linux
-    // popen abre un proceso y nos permite leer su salida como un archivo
-    FILE *fp = popen("ss -tunp | grep -v '127.0.0.1' | grep -v '::1'", "r");
+    const char *cmd = "ss -tunp | grep ESTAB | grep -v 127.0.0.1 | grep -v '::1'";
+    FILE *fp = popen(cmd, "r");
     if (fp == NULL) {
-        printf("%sError al ejecutar ss.%s\n", RED, RESET);
+        printf("%sError executing network command.%s\n", RED, RESET);
+        log_message("[ERROR] Failed to execute ss");
         return;
     }
 
-    char buffer[1024];
-    int alerta = 0;
-    // Se lee la salida del comando línea por línea
-    while (fgets(buffer, sizeof(buffer), fp) != NULL) {
-        alerta = 1;
-        printf("%s[ALERTA] Conexión detectada:%s %s", RED, RESET, buffer);
-        registrar_log("[ALERTA] Conexión detectada:");
-        registrar_log(buffer);
+    char *line = NULL;
+    size_t len = 0;
+    int alert_count = 0;
+
+    while (getline(&line, &len, fp) != -1) {
+        alert_count++;
+        printf("%s[ALERT] External connection detected:%s %s", RED, RESET, line);
+        log_message("[ALERT] External connection detected");
     }
 
-    if (!alerta) {
-        printf("%sNo hay conexiones externas sospechosas.%s\n", GREEN, RESET);
-        registrar_log("[INFO] Escaneo de red limpio.");
-    }
-    pclose(fp); // Se cierra el proceso abierto por popen
-}
+    free(line);
+    pclose(fp);
 
-// Función para visualizar el historial de eventos guardados
-void ver_log() {
-    printf("%s--- Historial del Sistema (monitor_log.txt) --- %s\n", BLUE, RESET);
-    // Se verifica si el archivo existe antes de intentar leerlo
-    if (access("monitor_log.txt", F_OK) != -1) {
-        system("tail -n 20 monitor_log.txt"); // Muestra solo las últimas 20 líneas
+    if (alert_count == 0) {
+        printf("%sNo external active connections detected.%s\n", GREEN, RESET);
+        log_message("[INFO] No external active connections detected");
     } else {
-        printf("El archivo de log aún no existe.\n");
+        char summary[128];
+        snprintf(summary, sizeof(summary),
+                 "[INFO] Total external connections detected: %d", alert_count);
+        log_message(summary);
     }
 }
 
-int main() {
-    char entrada[10]; // Buffer para leer la opción del menú
-    int opcion = 0;
+/*
+ * Export current system state to a JSON file.
+ */
+void export_to_json(void)
+{
+    FILE *json = fopen(JSON_FILE, "w");
+    if (json == NULL) {
+        printf("%sError creating JSON file.%s\n", RED, RESET);
+        return;
+    }
+
+    char timestamp[64];
+    get_timestamp(timestamp, sizeof(timestamp));
+
+    fprintf(json, "{\n");
+    fprintf(json, "  \"timestamp\": \"%s\",\n", timestamp);
+
+    /* Export processes */
+    fprintf(json, "  \"processes\": [\n");
+    FILE *fp = popen("ps aux --sort=-%cpu | head -n 11 | tail -n +2", "r");
+    if (fp != NULL) {
+        char *line = NULL;
+        size_t len = 0;
+        int first = 1;
+        while (getline(&line, &len, fp) != -1) {
+            /* Remove trailing newline */
+            size_t slen = strlen(line);
+            if (slen > 0 && line[slen - 1] == '\n')
+                line[slen - 1] = '\0';
+
+            if (!first)
+                fprintf(json, ",\n");
+            fprintf(json, "    \"%s\"", line);
+            first = 0;
+        }
+        free(line);
+        pclose(fp);
+    }
+    fprintf(json, "\n  ],\n");
+
+    /* Export connections */
+    fprintf(json, "  \"connections\": [\n");
+    fp = popen("ss -tunp | grep ESTAB | grep -v 127.0.0.1 | grep -v '::1'", "r");
+    if (fp != NULL) {
+        char *line = NULL;
+        size_t len = 0;
+        int first = 1;
+        while (getline(&line, &len, fp) != -1) {
+            size_t slen = strlen(line);
+            if (slen > 0 && line[slen - 1] == '\n')
+                line[slen - 1] = '\0';
+
+            if (!first)
+                fprintf(json, ",\n");
+            fprintf(json, "    \"%s\"", line);
+            first = 0;
+        }
+        free(line);
+        pclose(fp);
+    }
+    fprintf(json, "\n  ]\n");
+    fprintf(json, "}\n");
+
+    fclose(json);
+
+    char log_msg[128];
+    snprintf(log_msg, sizeof(log_msg), "[INFO] Data exported to %s", JSON_FILE);
+    log_message(log_msg);
+    printf("%s[+] Data exported to %s%s\n", GREEN, JSON_FILE, RESET);
+}
+
+/*
+ * Display the contents of the log file.
+ */
+void show_log(void)
+{
+    run_command("cat " LOG_FILE, "Log Contents", "Log contents shown");
+}
+
+/*
+ * Display the main menu.
+ */
+void print_menu(void)
+{
+    printf("%sMenu:%s\n", MAGENTA, RESET);
+    printf("1. Show active processes\n");
+    printf("2. Show disk usage\n");
+    printf("3. Detect remote connections\n");
+    printf("4. View log\n");
+    printf("5. Export data to JSON\n");
+    printf("6. Exit\n");
+    printf("Select an option: ");
+}
+
+/*
+ * Main entry point.
+ * Supports --watch <seconds> for continuous monitoring.
+ */
+int main(int argc, char *argv[])
+{
+    int watch_mode = 0;
+    int watch_interval = 5;
+    int opt;
+
+    static struct option long_options[] = {
+        {"watch",   required_argument, 0, 'w'},
+        {"help",    no_argument,       0, 'h'},
+        {0, 0, 0, 0}
+    };
+
+    while ((opt = getopt_long(argc, argv, "w:h", long_options, NULL)) != -1) {
+        switch (opt) {
+        case 'w':
+            watch_mode = 1;
+            watch_interval = atoi(optarg);
+            if (watch_interval < 1)
+                watch_interval = 5;
+            break;
+        case 'h':
+            printf("Usage: %s [OPTIONS]\n", argv[0]);
+            printf("  -w, --watch <seconds>  Continuous monitoring mode\n");
+            printf("  -h, --help             Show this help\n");
+            return 0;
+        default:
+            fprintf(stderr, "Usage: %s [-w seconds] [-h]\n", argv[0]);
+            return 1;
+        }
+    }
+
+    /* Continuous monitoring mode */
+    if (watch_mode) {
+        printf("Monitoring every %d seconds (Ctrl+C to stop)...\n\n", watch_interval);
+        while (1) {
+            print_banner();
+            show_processes(NULL);
+            show_disk();
+            detect_remote_connections();
+            printf("\n--- Next scan in %d seconds ---\n\n", watch_interval);
+            log_message("[INFO] Watch scan completed");
+            sleep(watch_interval);
+        }
+        return 0;
+    }
+
+    /* Interactive menu mode */
+    system("clear");
+    int option;
 
     do {
-        system("clear"); // Limpia la terminal en cada ciclo del menú
-        mostrar_banner();
-        printf("%sMenú Principal:%s\n", MAGENTA, RESET);
-        printf("1. Ver procesos activos\n");
-        printf("2. Ver uso de disco\n");
-        printf("3. Detección de red (Ciberseguridad)\n");
-        printf("4. Ver historial (Log)\n");
-        printf("5. Salir\n");
-        printf("Seleccione una opción: ");
+        print_banner();
+        print_menu();
 
-        // Forma más segura de leer entrada para evitar crashes por caracteres no numéricos
-        if (fgets(entrada, sizeof(entrada), stdin)) {
-            opcion = atoi(entrada); // Convierte la cadena a entero
+        if (scanf("%d", &option) != 1) {
+            printf("%sInvalid input.%s\n", RED, RESET);
+            log_message("[WARNING] Invalid input detected");
+            while (getchar() != '\n');
+            pause_screen();
+            continue;
         }
 
-        switch (opcion) {
-            case 1: mostrar_procesos(); break;
-            case 2: mostrar_disco(); break;
-            case 3: detectar_remoto(); break;
-            case 4: ver_log(); break;
-            case 5: 
-                printf("%sSaliendo... Hasta luego Hacker!%s\n", GREEN, RESET);
-                registrar_log("[SISTEMA] Monitor finalizado por el usuario.");
-                break;
-            default: 
-                printf("%sOpción no válida.%s\n", RED, RESET); 
-                break;
+        while (getchar() != '\n');
+
+        switch (option) {
+        case 1:
+            show_processes(NULL);
+            break;
+        case 2:
+            show_disk();
+            break;
+        case 3:
+            detect_remote_connections();
+            break;
+        case 4:
+            show_log();
+            break;
+        case 5:
+            export_to_json();
+            break;
+        case 6:
+            printf("%sExiting monitor... Goodbye!%s\n", GREEN, RESET);
+            log_message("[INFO] User exited monitor");
+            break;
+        default:
+            printf("%sInvalid option.%s\n", RED, RESET);
+            log_message("[WARNING] Invalid option selected");
+            break;
         }
 
-        if (opcion != 5) pausar();
+        pause_screen();
 
-    } while (opcion != 5);
+    } while (option != 6);
 
     return 0;
 }

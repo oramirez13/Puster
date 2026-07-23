@@ -1,0 +1,17 @@
+# Compiled binary
+puster
+
+# Generated files
+monitor_log.txt
+monitor_data.json
+
+# Editor configs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

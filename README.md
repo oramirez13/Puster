@@ -1,46 +1,71 @@
-Linux Monitoring Tool - orami Infosec 2025
+# Puster
 
-Puster is a Linux monitoring tool written in C that allows users to view active processes, monitor disk usage, detect remote network connections, and log alerts to a file. It is ideal for educational purposes, cybersecurity labs, and low-level programming practice.
+Linux system monitoring tool written in C. A console-based application that displays active processes, disk usage, and remote network connections with logging support.
 
-Features
+## Features
 
-* Display of active system processes.
-* Monitoring of disk usage.
-* Detection of active remote network connections.
-* Automatic event logging to a log file (`monitor_log.txt`).
-* Terminal-based interface with ANSI colors.
-* Alerts for established or suspicious external connections.
+- Display top processes sorted by CPU usage
+- Monitor disk usage for mounted partitions
+- Detect active remote network connections
+- Log all activity to file with timestamps
+- Export system state to JSON
+- Continuous monitoring mode with configurable interval
+- Interactive menu with colored output
 
-Requirements
+## Requirements
 
-* Linux operating system
-* GCC compiler
+- GCC compiler
+- Linux system with `ps`, `df`, and `ss` commands
 
-Compilation
+## Installation
 
 ```bash
-gcc puster.c -o puster
+# Clone the repository
+git clone <repository-url>
+cd puster
+
+# Build
+make
+
+# Optional: install to /usr/local/bin
+sudo make install
 ```
-Linux Monitoring Tool - orami Infosec 2025
 
-Puster es una herramienta de monitoreo para sistemas Linux desarrollada en C que permite visualizar procesos activos, monitorear el uso de disco, detectar conexiones de red remotas y registrar alertas en un archivo de log. Es ideal para fines educativos, laboratorios de ciberseguridad y prácticas de programación de bajo nivel.
-
-## Características
-
-* Visualización de procesos activos del sistema.
-* Monitoreo del uso de disco.
-* Detección de conexiones de red remotas activas.
-* Registro automático de eventos en un archivo de log (`monitor_log.txt`).
-* Interfaz en terminal con colores ANSI.
-* Alertas sobre conexiones externas establecidas o sospechosas.
-
-Requisitos
-
-* Sistema operativo Linux
-* Compilador GCC
-
-Compilación
+## Usage
 
 ```bash
-gcc puster.c -o puster
+# Interactive menu mode
+./puster
+
+# Continuous monitoring (every 5 seconds)
+./puster --watch 5
+
+# Show help
+./puster --help
+```
+
+## Menu Options
+
+| Option | Description |
+|--------|-------------|
+| 1 | Show active processes (top 15 by CPU) |
+| 2 | Show disk usage |
+| 3 | Detect remote connections |
+| 4 | View log file |
+| 5 | Export data to JSON |
+| 6 | Exit |
+
+## Output Files
+
+- `monitor_log.txt` - Activity log with timestamps
+- `monitor_data.json` - System state export (created on demand)
+
+## Project Structure
+
+```
+puster/
+├── puster.c          # Source code
+├── Makefile          # Build configuration
+├── README.md         # Documentation
+└── .gitignore
 ```
