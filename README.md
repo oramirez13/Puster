@@ -31,6 +31,13 @@ make
 sudo make install
 ```
 
+### If make fails
+
+You can compile manually:
+```bash
+gcc -o puster puster.c
+```
+
 ## Usage
 
 ```bash
